@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Ultra-accurate, real-time weather forecasting dashboard powered by Open-Meteo. Features current weather, hourly forecast, 7-day outlook, rain accumulation, UV index, and smart weather suggestions.">
+    <meta name="theme-color" content="#0b0f19">
+    <title>INDHRA Weather | Real-Time Forecast Dashboard</title>
+    
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Outfit:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+    
+    <!-- FontAwesome 6 Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" crossorigin="anonymous">
+
+    <!-- Custom Style -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body class="theme-default">
+    <!-- Dynamic Ambient Backdrop & Animated Particles Canvas -->
+    <div class="ambient-backdrop" id="ambient-backdrop"></div>
+    <canvas id="weather-particles-canvas" class="particles-canvas"></canvas>
+
+    <div class="app-container">
+        <!-- Header & Navigation -->
+        <header class="app-header">
+            <div class="brand">
+                <div class="brand-icon-wrapper">
+                    <div class="brand-icon">
+                        <i class="fa-solid fa-cloud-showers-heavy"></i>
+                    </div>
+                </div>
+                <div class="brand-text">
+                    <h1>IND<span>HRA</span> Weather</h1>
+                    <span class="badge pulse-badge"><i class="fa-solid fa-circle"></i> Live Forecast</span>
+                </div>
+            </div>
+
+            <!-- Search & Controls -->
+            <div class="controls-wrapper">
+                <div class="search-container">
+                    <div class="search-input-wrapper">
+                        <i class="fa-solid fa-magnifying-glass search-icon"></i>
+                        <input 
+                            type="text" 
+                            id="location-search-input" 
+                            placeholder="Search any city, region, or country..." 
+                            autocomplete="off"
+                            spellcheck="false"
+                            aria-label="Search location"
+                        >
+                        <button id="clear-search-btn" class="clear-btn" aria-label="Clear search" style="display: none;">
+                            <i class="fa-solid fa-xmark"></i>
+                        </button>
+                    </div>
+                    <div id="search-results-dropdown" class="search-dropdown" style="display: none;"></div>
+                </div>
+
+                <div class="action-buttons">
+                    <button id="geo-location-btn" class="btn btn-glass" title="Use current location">
+                        <i class="fa-solid fa-location-crosshairs"></i>
+                        <span class="btn-text">My Location</span>
+                    </button>
+
+                    <div class="unit-toggle" role="group" aria-label="Temperature unit switcher">
+                        <button id="unit-c-btn" class="unit-btn active" data-unit="C">°C</button>
+                        <button id="unit-f-btn" class="unit-btn" data-unit="F">°F</button>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <!-- Quick Location Pills -->
+        <nav class="quick-locations" aria-label="Popular cities">
+            <span class="quick-label"><i class="fa-solid fa-fire text-amber"></i> Quick Select:</span>
+            <div class="pills-scroll">
+                <button class="city-pill" data-name="Tokyo" data-lat="35.6895" data-lon="139.6917" data-country="Japan">Tokyo</button>
+                <button class="city-pill" data-name="London" data-lat="51.5085" data-lon="-0.1257" data-country="United Kingdom">London</button>
+                <button class="city-pill" data-name="New York" data-lat="40.7128" data-lon="-74.0060" data-country="United States">New York</button>
+                <button class="city-pill" data-name="Paris" data-lat="48.8566" data-lon="2.3522" data-country="France">Paris</button>
+                <button class="city-pill" data-name="Sydney" data-lat="-33.8688" data-lon="151.2093" data-country="Australia">Sydney</button>
+                <button class="city-pill" data-name="Dubai" data-lat="25.2048" data-lon="55.2708" data-country="United Arab Emirates">Dubai</button>
+                <button class="city-pill" data-name="Rio de Janeiro" data-lat="-22.9068" data-lon="-43.1729" data-country="Brazil">Rio de Janeiro</button>
+            </div>
+        </nav>
+
+        <!-- Toast / Notification Banner -->
+        <div id="toast-container" class="toast-container"></div>
+
+        <!-- Skeleton Loading View -->
+        <div id="skeleton-loader" class="skeleton-container" style="display: none;">
+            <div class="skeleton-card hero-skeleton"></div>
+            <div class="skeleton-grid">
+                <div class="skeleton-card"></div>
+                <div class="skeleton-card"></div>
+                <div class="skeleton-card"></div>
+                <div class="skeleton-card"></div>
+            </div>
+        </div>
+
+        <!-- Main Dashboard View -->
+        <main id="weather-dashboard" class="dashboard-content">
+            <!-- Hero Weather & Metrics Split Row -->
+            <div class="hero-split-row">
+                <!-- Main Current Weather Hero Card -->
+                <section class="glass-card hero-card animate-fadeInUp" id="hero-card">
+                    <div class="location-header">
+                        <div>
+                            <h2 id="current-location-name">Loading...</h2>
+                            <p id="current-location-meta" class="sub-text">Fetching live satellite weather data...</p>
+                        </div>
+                        <div class="time-badge" id="local-time-badge">
+                            <i class="fa-regular fa-clock text-blue"></i>
+                            <span id="local-time-str">--:--</span>
+                        </div>
+                    </div>
+
+                    <div class="hero-main">
+                        <div class="weather-visual">
+                            <div class="icon-glow-wrapper">
+                                <div id="current-weather-icon" class="weather-hero-icon animated-floating-icon">
+                                    <i class="fa-solid fa-sun icon-sunny"></i>
+                                </div>
+                            </div>
+                            <div class="temp-readout">
+                                <span id="current-temp-val">--</span>
+                                <span class="temp-symbol" id="temp-unit-symbol">°C</span>
+                            </div>
+                        </div>
+
+                        <div class="weather-condition-details">
+                            <h3 id="current-condition-text">Clear Sky</h3>
+                            <p class="feels-like">
+                                Feels like <span id="feels-like-val">--</span><span class="temp-unit-symbol">°C</span>
+                            </p>
+                            <div class="temp-minmax-range">
+                                <span class="high-temp"><i class="fa-solid fa-arrow-up"></i> <span id="temp-max-val">--</span>°</span>
+                                <span class="divider">•</span>
+                                <span class="low-temp"><i class="fa-solid fa-arrow-down"></i> <span id="temp-min-val">--</span>°</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="hero-footer-bar">
+                        <div class="quick-metric">
+                            <i class="fa-solid fa-cloud text-cyan"></i>
+                            <span>Cloud Cover: <strong id="cloud-cover-val">--%</strong></span>
+                        </div>
+                        <div class="quick-metric">
+                            <i class="fa-solid fa-gauge-high text-purple"></i>
+                            <span>Pressure: <strong id="pressure-val">-- hPa</strong></span>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Weather Details Metric Cards Grid -->
+                <section class="metrics-grid" id="weather-metrics-grid">
+                    <!-- Humidity Card -->
+                    <div class="glass-card metric-card animate-fadeInUp" style="animation-delay: 0.05s;">
+                        <div class="metric-header">
+                            <span class="metric-title"><i class="fa-solid fa-droplet text-blue"></i> Humidity</span>
+                            <span class="metric-badge" id="humidity-badge">--</span>
+                        </div>
+                        <div class="metric-value-container">
+                            <span class="metric-num" id="humidity-val">--</span><span class="metric-unit">%</span>
+                        </div>
+                        <div class="progress-bar-container">
+                            <div class="progress-bar-fill bg-blue" id="humidity-progress" style="width: 0%;"></div>
+                        </div>
+                        <p class="metric-desc" id="humidity-desc">Comfort level rating</p>
+                    </div>
+
+                    <!-- Wind Speed Card -->
+                    <div class="glass-card metric-card animate-fadeInUp" style="animation-delay: 0.1s;">
+                        <div class="metric-header">
+                            <span class="metric-title"><i class="fa-solid fa-wind text-teal"></i> Wind Speed</span>
+                            <span class="compass-pointer-wrapper">
+                                <i class="fa-solid fa-location-arrow compass-icon" id="wind-direction-arrow"></i>
+                                <span id="wind-dir-text">N</span>
+                            </span>
+                        </div>
+                        <div class="metric-value-container">
+                            <span class="metric-num" id="wind-speed-val">--</span><span class="metric-unit" id="wind-unit">km/h</span>
+                        </div>
+                        <div class="metric-sub-detail">
+                            <span>Wind Gusts: <strong id="wind-gusts-val">--</strong> <span class="wind-unit-small">km/h</span></span>
+                        </div>
+                    </div>
+
+                    <!-- UV Index Card -->
+                    <div class="glass-card metric-card animate-fadeInUp" style="animation-delay: 0.15s;">
+                        <div class="metric-header">
+                            <span class="metric-title"><i class="fa-solid fa-sun text-amber"></i> UV Index</span>
+                            <span class="metric-badge" id="uv-badge">--</span>
+                        </div>
+                        <div class="metric-value-container">
+                            <span class="metric-num" id="uv-val">--</span><span class="metric-unit">/12</span>
+                        </div>
+                        <div class="progress-bar-container">
+                            <div class="progress-bar-fill bg-uv" id="uv-progress" style="width: 0%;"></div>
+                        </div>
+                        <p class="metric-desc" id="uv-desc">Solar radiation risk</p>
+                    </div>
+
+                    <!-- Rain & Precipitation Card -->
+                    <div class="glass-card metric-card animate-fadeInUp" style="animation-delay: 0.2s;">
+                        <div class="metric-header">
+                            <span class="metric-title"><i class="fa-solid fa-cloud-showers-heavy text-indigo"></i> Rain & Precip</span>
+                            <span class="metric-badge" id="precip-badge">--</span>
+                        </div>
+                        <div class="metric-value-container">
+                            <span class="metric-num" id="precip-val">--</span><span class="metric-unit" id="precip-unit">mm</span>
+                        </div>
+                        <div class="metric-sub-detail">
+                            <span>Rain Probability: <strong id="precip-prob-val">--%</strong></span>
+                        </div>
+                    </div>
+
+                    <!-- Sunrise & Sunset Timeline Card -->
+                    <div class="glass-card metric-card metric-card-wide animate-fadeInUp" style="animation-delay: 0.25s;">
+                        <div class="metric-header">
+                            <span class="metric-title"><i class="fa-solid fa-sun-plant-wilt text-yellow"></i> Sun & Daylight Arc</span>
+                        </div>
+                        <div class="sun-schedule-content">
+                            <div class="sun-event">
+                                <i class="fa-solid fa-sunrise text-amber"></i>
+                                <div>
+                                    <span class="event-label">Sunrise</span>
+                                    <span class="event-time" id="sunrise-time">--:--</span>
+                                </div>
+                            </div>
+
+                            <div class="daylight-arc-container">
+                                <div class="sun-track-line">
+                                    <div class="sun-position-dot" id="sun-position-dot"></div>
+                                </div>
+                                <span class="daylight-duration" id="daylight-duration-str">-- hrs daylight</span>
+                            </div>
+
+                            <div class="sun-event">
+                                <i class="fa-solid fa-sunset text-orange"></i>
+                                <div>
+                                    <span class="event-label">Sunset</span>
+                                    <span class="event-time" id="sunset-time">--:--</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Dew Point & Visibility Card -->
+                    <div class="glass-card metric-card animate-fadeInUp" style="animation-delay: 0.3s;">
+                        <div class="metric-header">
+                            <span class="metric-title"><i class="fa-solid fa-eye text-cyan"></i> Visibility</span>
+                        </div>
+                        <div class="metric-value-container">
+                            <span class="metric-num" id="visibility-val">--</span><span class="metric-unit" id="visibility-unit">km</span>
+                        </div>
+                        <p class="metric-desc" id="visibility-desc">Atmospheric clarity</p>
+                    </div>
+
+                    <!-- Dew Point Card -->
+                    <div class="glass-card metric-card animate-fadeInUp" style="animation-delay: 0.35s;">
+                        <div class="metric-header">
+                            <span class="metric-title"><i class="fa-solid fa-temperature-half text-rose"></i> Dew Point</span>
+                        </div>
+                        <div class="metric-value-container">
+                            <span class="metric-num" id="dewpoint-val">--</span><span class="metric-unit temp-unit-symbol">°C</span>
+                        </div>
+                        <p class="metric-desc" id="dewpoint-desc">Condensation point</p>
+                    </div>
+                </section>
+            </div>
+
+            <!-- Smart Weather Insights & Lifestyle Advisor -->
+            <section class="glass-card section-card animate-fadeInUp" style="animation-delay: 0.4s;">
+                <div class="section-header">
+                    <h3><i class="fa-solid fa-wand-magic-sparkles text-amber"></i> Smart Weather Insights & City Advisor</h3>
+                    <span class="sub-heading">Real-time lifestyle & outdoor recommendations</span>
+                </div>
+                <div id="smart-suggestions-container" class="suggestions-grid"></div>
+            </section>
+
+            <!-- Hourly Forecast Carousel Section -->
+            <section class="glass-card section-card animate-fadeInUp" style="animation-delay: 0.45s;">
+                <div class="section-header">
+                    <h3><i class="fa-solid fa-clock text-blue"></i> Hourly Forecast (Next 24 Hours)</h3>
+                    <span class="sub-heading">Swipe or scroll horizontally</span>
+                </div>
+                <div class="hourly-scroll-container">
+                    <div id="hourly-forecast-track" class="hourly-track"></div>
+                </div>
+            </section>
+
+            <!-- Accurate 7-Day Daily Forecast Section -->
+            <section class="glass-card section-card animate-fadeInUp" style="animation-delay: 0.5s;">
+                <div class="section-header">
+                    <h3><i class="fa-solid fa-calendar-days text-teal"></i> Accurate 7-Day Forecast</h3>
+                    <span class="sub-heading">High-precision daily outlook</span>
+                </div>
+                <div id="daily-forecast-list" class="daily-list"></div>
+            </section>
+        </main>
+
+        <!-- App Footer -->
+        <footer class="app-footer">
+            <p>Powered by <strong>Open-Meteo API</strong> & <strong>Python Flask</strong> • INDHRA Weather Forecasting Solution</p>
+        </footer>
+    </div>
+
+    <!-- Application Script -->
+    <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+</body>
+</html>
